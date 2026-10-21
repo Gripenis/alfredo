@@ -101,7 +101,7 @@ const I18N = {
     fromFood: 'Mat', fromSupps: 'Tillskott',
     mealLog: 'Loggade måltider (7 dagar)', noMeals: 'Inga loggade måltider de senaste 7 dagarna.',
     ignoredTag: 'ignorerad', confirmDeleteLog: 'Ta bort loggen?',
-    microsFootnote: 'Mål baseras ungefärligt på Nordiska näringsrekommendationer 2023 (vuxna) och din profil. Näringsvärden i databasen är ungefärliga. Ungefärliga mängder (skvätt, nypa) räknas inte, men näringsämnen som den råvaran är rik på antas täckta.',
+    microsFootnote: 'Mål baseras ungefärligt på Nordiska näringsrekommendationer 2023 (vuxna) och din profil. Näringsvärden kommer från Livsmedelsverkets livsmedelsdatabas (CC BY 4.0) och USDA FoodData Central; vitamin K, B5, koppar och mangan är kopplade via namn och en del är uppskattade från liknande livsmedel. Ungefärliga mängder (skvätt, nypa) räknas inte, men näringsämnen som den råvaran är rik på antas täckta.',
     noTracked: 'Du följer inga näringsämnen. Tryck på "Lägg till mikros".',
     allTracked: 'Du följer redan alla näringsämnen.',
     // supplements
@@ -156,7 +156,7 @@ const I18N = {
     deleteAll: 'Radera all data', confirmDeleteAll: 'Radera ALLA recept, loggar och inställningar? Det går inte att ångra.',
     confirmDeleteAll2: 'Är du helt säker?',
     about: 'Om appen',
-    aboutText: 'Ristorante Alfredo fungerar helt offline. Ingen data lämnar telefonen.',
+    aboutText: 'Ristorante Alfredo fungerar helt offline. Ingen data lämnar telefonen. Näringsdata: Livsmedelsverkets livsmedelsdatabas (CC BY 4.0) och USDA FoodData Central.',
     version: 'Version',
     goalsUpdated: 'Näringsmål uppdaterade',
     recipesCount: '{n} recept'
@@ -254,7 +254,7 @@ const I18N = {
     fromFood: 'Food', fromSupps: 'Supplements',
     mealLog: 'Logged meals (7 days)', noMeals: 'No meals logged in the last 7 days.',
     ignoredTag: 'ignored', confirmDeleteLog: 'Delete this log entry?',
-    microsFootnote: 'Goals are approximate, based on the Nordic Nutrition Recommendations 2023 (adults) and your profile. Database values are approximate. Rough amounts (drizzle, pinch) aren’t counted, but nutrients that ingredient is rich in are assumed covered.',
+    microsFootnote: 'Goals are approximate, based on the Nordic Nutrition Recommendations 2023 (adults) and your profile. Nutrient values come from the Swedish Food Agency\u2019s food database (Livsmedelsverket, CC BY 4.0) and USDA FoodData Central; vitamin K, B5, copper and manganese are matched by name and some are estimated from similar foods. Rough amounts (drizzle, pinch) aren’t counted, but nutrients that ingredient is rich in are assumed covered.',
     noTracked: 'You’re not tracking any nutrients. Tap "Add micros".',
     allTracked: 'You’re already tracking every nutrient.',
     suppsTitle: 'Supplements',
@@ -305,7 +305,7 @@ const I18N = {
     deleteAll: 'Delete all data', confirmDeleteAll: 'Delete ALL recipes, logs and settings? This can’t be undone.',
     confirmDeleteAll2: 'Are you completely sure?',
     about: 'About',
-    aboutText: 'Ristorante Alfredo works fully offline. No data leaves your phone.',
+    aboutText: 'Ristorante Alfredo works fully offline. No data leaves your phone. Nutrient data: Livsmedelsverket (Swedish Food Agency) food database (CC BY 4.0) and USDA FoodData Central.',
     version: 'Version',
     goalsUpdated: 'Nutrient goals updated',
     recipesCount: '{n} recipes'

@@ -1,9 +1,9 @@
 /* Ristorante Alfredo – app logic. Plain JS, no dependencies, works offline. */
 'use strict';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.2.0';
 const DAY = 86400000;
-const DEFAULT_ON = ['vitA','vitD','vitC','b12','folate','fe','ca','mg','zn','iod','se','kalium'];
+const DEFAULT_ON = NUTRIENT_KEYS.filter(k => k !== 'omega3');
 
 /* ================= Storage (IndexedDB with localStorage fallback) ================= */
 const Store = {
@@ -63,6 +63,11 @@ async function loadAll() {
   S.settings.theme = Object.assign({}, DEFAULT_SETTINGS.theme, S.settings.theme || {});
   S.goals = S.goals || {};
   ensureGoals();
+  if (!S.settings.allMicrosOn) {
+    NUTRIENT_KEYS.forEach(k => { if (k !== 'omega3' && S.goals[k]) S.goals[k].on = true; });
+    S.settings.allMicrosOn = true;
+    Store.set('goals', S.goals); Store.set('settings', S.settings);
+  }
 }
 let persistAsked = false;
 function save(...keys) {
@@ -127,6 +132,7 @@ function relDays(ts) {
 }
 function startOfDay(ts) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
 
+function bounce(el, cls = 'pop') { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), 600); }
 let toastTimer;
 function toast(msg) {
   const el = $('#toast'); el.textContent = msg; el.classList.add('show');
@@ -215,11 +221,18 @@ function foodById(id) {
 }
 const foodName = f => f ? (f.custom ? f.sv : (f[lang()] || f.sv)) : '';
 const normalize = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-function searchFoods(q, limit = 7) {
+const NAME_CACHE = new WeakMap();
+function foodNames(f) {
+  let n = NAME_CACHE.get(f);
+  if (!n) { n = [f.sv].concat(f.pop || f.custom || lang() === 'en' ? [f.en] : [], f.al || []).map(normalize); NAME_CACHE.set(f, n); }
+  return n;
+}
+function searchFoods(q, limit = 8) {
   q = normalize(q); if (q.length < 1) return [];
   const out = [];
   for (const f of allFoods()) {
-    const names = [f.sv, f.en].concat(f.al || []).map(normalize);
+    if (f.custom) NAME_CACHE.delete(f);
+    const names = foodNames(f);
     let best = 99;
     names.forEach(n => {
       if (n === q) best = Math.min(best, 0);
@@ -227,9 +240,16 @@ function searchFoods(q, limit = 7) {
       else if (n.split(/[\s\/(),-]+/).some(w => w.startsWith(q))) best = Math.min(best, 2);
       else if (q.length >= 3 && n.includes(q)) best = Math.min(best, 3);
     });
-    if (best < 99) out.push([best, f]);
+    if (best < 99) {
+      // prefer your own and the common ingredients, then raw foods, and put ready dishes last
+      let w = best * 10;
+      if (f.custom || f.pop) w -= 4;
+      if (f.cat === 'dish') w += 6;
+      if (/\b(ra|raw)\b/.test(normalize(foodName(f)))) w -= 1;
+      out.push([w, f]);
+    }
   }
-  out.sort((a, b) => a[0] - b[0] || (b[1].custom ? 1 : 0) - (a[1].custom ? 1 : 0) || foodName(a[1]).length - foodName(b[1]).length);
+  out.sort((a, b) => a[0] - b[0] || foodName(a[1]).length - foodName(b[1]).length);
   return out.slice(0, limit).map(x => x[1]);
 }
 function nutList() {
@@ -395,7 +415,9 @@ function render() {
   document.body.classList.toggle('full-page', full);
   $$('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.go === route));
   const view = $('#view');
-  view.className = 'view view-' + route;
+  const changed = prev !== route + '/' + params.join('/');
+  view.className = 'view view-' + route + (changed ? (full ? ' anim-page' : ' anim') : '');
+  clearTimeout(app.animT); if (changed) app.animT = setTimeout(() => view.classList.remove('anim', 'anim-page'), 700);
   const fn = { home: renderHome, micros: renderMicros, supplements: renderSupps, shopping: renderShopping, converter: renderConverter, recipe: renderRecipe, edit: renderEditor, profile: renderProfile }[route] || renderHome;
   fn(view, params);
   const key = route + '/' + params.join('/');
@@ -411,7 +433,7 @@ function renderChrome() {
   $('#tb-profile').onclick = () => go('profile');
   const tabs = [['home', IC.home, 'tabHome'], ['micros', IC.micros, 'tabMicros'], ['supplements', IC.pill, 'tabSupps'], ['shopping', IC.cart, 'tabShop'], ['converter', IC.scale, 'tabConvert']];
   $('#tabbar').innerHTML = tabs.map(([r, ic, k]) => `<button data-go="${r}" class="${app.route === r ? 'on' : ''}">${ic}<span>${esc(t(k))}</span></button>`).join('');
-  $$('#tabbar button').forEach(b => b.onclick = () => { if (app.route === b.dataset.go) window.scrollTo({ top: 0, behavior: 'smooth' }); else go(b.dataset.go); });
+  $$('#tabbar button').forEach(b => b.onclick = () => { bounce(b); if (app.route === b.dataset.go) window.scrollTo({ top: 0, behavior: 'smooth' }); else go(b.dataset.go); });
   document.documentElement.lang = lang();
 }
 
@@ -612,21 +634,21 @@ function renderRecipe(view, [id]) {
     $$('#steps li').forEach(li => li.onclick = () => {
       const arr = stepState(r.id); const sid = li.dataset.s;
       const i = arr.indexOf(sid); if (i >= 0) arr.splice(i, 1); else arr.push(sid);
-      setStepState(r.id, arr); li.classList.toggle('done');
+      setStepState(r.id, arr); li.classList.toggle('done'); if (li.classList.contains('done')) bounce($('.cb', li));
     });
   };
   drawIngredients(); drawNutrition(); drawSteps();
 
-  $('#sv-minus').onclick = () => { if (app.serv > 1) { app.serv--; $('#sv-val').textContent = app.serv; drawIngredients(); } };
-  $('#sv-plus').onclick = () => { if (app.serv < 99) { app.serv++; $('#sv-val').textContent = app.serv; drawIngredients(); } };
+  $('#sv-minus').onclick = () => { if (app.serv > 1) { app.serv--; $('#sv-val').textContent = app.serv; bounce($('#sv-val'), 'bump'); drawIngredients(); } };
+  $('#sv-plus').onclick = () => { if (app.serv < 99) { app.serv++; $('#sv-val').textContent = app.serv; bounce($('#sv-val'), 'bump'); drawIngredients(); } };
   $('#rp-back').onclick = () => goBack();
   $('#rp-edit').onclick = () => go('edit/' + r.id);
-  $('#rp-fav').onclick = e => { r.fav = !r.fav; save('recipes'); e.currentTarget.classList.toggle('on', r.fav); };
+  $('#rp-fav').onclick = e => { r.fav = !r.fav; save('recipes'); e.currentTarget.classList.toggle('on', r.fav); bounce(e.currentTarget); };
   $('#rp-reset').onclick = () => { setStepState(r.id, []); drawSteps(); };
   $('#rp-shop').onclick = () => { addRecipeToShopping(r, factor()); toast(t('addedToShopping')); };
   $$('#rating button').forEach(b => b.onclick = () => {
     const v = Number(b.dataset.r); r.rating = r.rating === v ? 0 : v; save('recipes');
-    $$('#rating button').forEach(x => x.classList.toggle('on', Number(x.dataset.r) <= r.rating));
+    $$('#rating button').forEach(x => x.classList.toggle('on', Number(x.dataset.r) <= r.rating)); bounce(b);
   });
   let nt; $('#rp-notes').oninput = e => { r.notes = e.target.value; clearTimeout(nt); nt = setTimeout(() => save('recipes'), 400); };
   $('#rp-done').onclick = () => openComplete(r, app.serv, () => { setStepState(r.id, []); drawSteps(); });
@@ -1176,7 +1198,8 @@ function renderShopping(view) {
   $('#sh-form').onsubmit = e => { e.preventDefault(); const v = $('#sh-in').value.trim(); if (!v) return; S.shopping.unshift({ id: uid(), name: v, amount: null, unit: '', checked: false, from: [] }); save('shopping'); render(); setTimeout(() => $('#sh-in') && $('#sh-in').focus(), 30); };
   $$('.shop li').forEach(li => li.onclick = e => {
     if (e.target.closest('[data-rm]')) return;
-    const s = S.shopping.find(x => x.id === li.dataset.id); s.checked = !s.checked; save('shopping'); render();
+    const s = S.shopping.find(x => x.id === li.dataset.id); s.checked = !s.checked; save('shopping');
+    li.classList.toggle('done', s.checked); bounce($('.cb', li)); setTimeout(render, 260);
   });
   $$('[data-rm]').forEach(b => b.onclick = () => { S.shopping = S.shopping.filter(x => x.id !== b.dataset.rm); save('shopping'); render(); });
   const c = $('#sh-clear'); if (c) c.onclick = () => { S.shopping = S.shopping.filter(s => !s.checked); save('shopping'); render(); };
@@ -1336,7 +1359,7 @@ function renderProfile(view) {
   const goalsChanged = () => { ensureGoals(); save('settings', 'goals'); };
   $$('#pf-sex button').forEach(b => b.onclick = () => { st.sex = b.dataset.v; $$('#pf-sex button').forEach(x => x.classList.toggle('on', x === b)); goalsChanged(); toast(t('goalsUpdated')); });
   $('#pf-age').onchange = e => { const v = parseInt(e.target.value, 10); if (v >= 18 && v < 120) { st.age = v; goalsChanged(); toast(t('goalsUpdated')); } else e.target.value = st.age; };
-  $$('#pf-lang button').forEach(b => b.onclick = () => { st.lang = b.dataset.v; save('settings'); renderChrome(); render(); });
+  $$('#pf-lang button').forEach(b => b.onclick = () => { st.lang = b.dataset.v; allFoods().forEach(f => NAME_CACHE.delete(f)); save('settings'); renderChrome(); render(); });
   $$('.theme').forEach(b => b.onclick = () => { const p = PRESETS.find(x => x.id === b.dataset.p); st.theme = { preset: p.id, bg: p.bg, accent: p.accent }; save('settings'); applyTheme(); render(); });
   $('#pf-bg').oninput = e => { st.theme.bg = e.target.value; st.theme.preset = 'custom'; applyTheme(); };
   $('#pf-ac').oninput = e => { st.theme.accent = e.target.value; st.theme.preset = 'custom'; applyTheme(); };
@@ -1428,6 +1451,9 @@ function loadSamples() {
 }
 
 /* ================= Boot ================= */
+// no pinch/double-tap zoom (iOS ignores user-scalable=no, so block the gestures)
+['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
+document.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
 async function boot() {
   await loadAll();
   applyTheme();
