@@ -1,7 +1,7 @@
 /* Ristorante Alfredo – app logic. Plain JS, no dependencies, works offline. */
 'use strict';
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const DAY = 86400000;
 const DEFAULT_ON = NUTRIENT_KEYS.filter(k => k !== 'omega3');
 
@@ -72,6 +72,7 @@ async function loadAll() {
 let persistAsked = false;
 function save(...keys) {
   keys.forEach(k => Store.set(k, S[k]));
+  if (typeof Sync !== 'undefined') Sync.noteChange(keys);
   if (!persistAsked && navigator.storage && navigator.storage.persist) { persistAsked = true; navigator.storage.persist().catch(() => {}); }
 }
 
@@ -1311,6 +1312,8 @@ function renderProfile(view) {
           <small class="help">${esc(t('profileHelp'))}</small>
         </section>
 
+        ${syncSectionHTML()}
+
         <section class="set-sec"><h2>${esc(t('language'))}</h2>
           <div class="seg" id="pf-lang"><button data-v="sv" class="${lang() === 'sv' ? 'on' : ''}">Svenska</button><button data-v="en" class="${lang() === 'en' ? 'on' : ''}">English</button></div>
         </section>
@@ -1378,7 +1381,39 @@ function renderProfile(view) {
     if (!confirm(t('confirmDeleteAll')) || !confirm(t('confirmDeleteAll2'))) return;
     await Store.clear(); location.hash = '#/home'; location.reload();
   };
+  bindSyncSection();
   if (navigator.storage && navigator.storage.persisted) navigator.storage.persisted().then(p => { const el = $('#pf-persist'); if (el) el.textContent = p ? t('storagePersisted') : t('storageNotPersisted'); }).catch(() => {});
+}
+
+/* ================= Sync settings ================= */
+function syncSectionHTML() {
+  const on = typeof Sync !== 'undefined' && Sync.enabled();
+  return `<section class="set-sec" id="sync-sec"><h2>${esc(t('syncTitle'))}</h2>
+    <small class="help">${esc(t('syncHelp'))}</small>
+    ${on ? `
+      <div class="sync-state"><span class="sync-dot"></span><div><b>${esc(t('syncConnected'))}</b><small id="sy-status">${esc(Sync.statusText())}</small></div></div>
+      <div class="btn-col">
+        <button class="btn primary wide" id="sy-now">${esc(t('syncNow'))}</button>
+        <button class="btn ghost wide" id="sy-off">${esc(t('syncDisconnect'))}</button>
+      </div>` : `
+      <label class="field"><span>${esc(t('syncUrl'))}</span><input id="sy-url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://alfredo-sync.namn.workers.dev" value="${esc(S.settings.syncUrl || '')}"></label>
+      <label class="field"><span>${esc(t('syncKey'))}</span><input id="sy-key" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" value=""></label>
+      <p class="fine" id="sy-msg"></p>
+      <button class="btn primary wide" id="sy-connect">${esc(t('syncConnect'))}</button>`}
+    <p class="fine">${esc(t('syncWhat'))}</p>
+  </section>`;
+}
+function bindSyncSection() {
+  const now = $('#sy-now');
+  if (now) now.onclick = async () => { bounce(now); await Sync.run(); Sync.status(Sync.st.err ? 'err' : 'ok'); if (!Sync.st.err) toast(t('syncDone')); };
+  const off = $('#sy-off');
+  if (off) off.onclick = () => { if (!confirm(t('syncConfirmOff'))) return; Sync.disconnect(); toast(t('syncOff')); render(); };
+  const c = $('#sy-connect');
+  if (c) c.onclick = async () => {
+    const msg = $('#sy-msg'); c.disabled = true; msg.textContent = t('syncTesting');
+    try { await Sync.connect($('#sy-url').value, $('#sy-key').value); toast(t('syncConnectedToast')); render(); }
+    catch (e) { msg.textContent = e.message === 'bad-key' ? t('syncBadKey') : e.message === 'missing' ? t('syncMissing') : e.message === 'offline' ? t('syncCantReach') : t('syncError') + ' (' + e.message + ')'; c.disabled = false; }
+  };
 }
 
 async function exportData() {
@@ -1402,9 +1437,12 @@ function importData(file) {
       const obj = JSON.parse(rd.result);
       if (!obj || obj.app !== 'ristorante-alfredo' || !obj.data) throw new Error('bad');
       if (!confirm(t('importConfirm'))) return;
+      const keepSync = { syncUrl: S.settings.syncUrl || '', syncKey: S.settings.syncKey || '' };
       KEYS.forEach(k => { if (obj.data[k] !== undefined) S[k] = obj.data[k]; });
       S.settings = Object.assign({}, DEFAULT_SETTINGS, S.settings || {});
       S.settings.theme = Object.assign({}, DEFAULT_SETTINGS.theme, S.settings.theme || {});
+      Object.assign(S.settings, keepSync);
+      if (typeof Sync !== 'undefined') Sync.reset();
       ['recipes', 'customFoods', 'log', 'supplements', 'customNutrients', 'shopping'].forEach(k => { if (!Array.isArray(S[k])) S[k] = []; });
       S.goals = S.goals || {}; S.skipped = S.skipped || { day: '', ids: [] };
       ensureGoals();
@@ -1461,6 +1499,7 @@ async function boot() {
   app.navCount = 0;
   window.addEventListener('hashchange', () => { app.navCount++; render(); });
   render();
+  if (typeof Sync !== 'undefined') Sync.init();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
     let reloaded = false;
