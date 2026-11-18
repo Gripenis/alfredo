@@ -12,3 +12,7 @@ Your offline recipe app. To put it on your iPhone:
 Your recipes are stored only on your phone (only the app code is public). Use *Profile → Export backup* now and then.
 
 When updating files later, change `CACHE` in `sw.js` (e.g. `alfredo-v1.0.1`), upload, then close and reopen the app.
+
+## Sharing recipes between two phones (optional)
+
+The folder `cloudflare/` is NOT part of the website – it holds `worker.js`, a small free sync server you paste into Cloudflare (Workers + a D1 database named with binding `DB`, and a secret `SYNC_KEY` = your household code). Then enter the worker address and the code under Profile → *Dela med hushållet* on each phone.

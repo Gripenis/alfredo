@@ -1,7 +1,7 @@
 /* Ristorante Alfredo – offline cache. Bump CACHE when you upload new files. */
-const CACHE = 'alfredo-v1.2.0';
+const CACHE = 'alfredo-v1.3.0';
 const FILES = [
-  './', './index.html', './css/styles.css', './js/foods.js', './js/i18n.js', './js/app.js',
+  './', './index.html', './css/styles.css', './js/foods.js', './js/i18n.js', './js/app.js', './js/sync.js',
   './manifest.webmanifest', './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'
 ];
 self.addEventListener('install', e => {
